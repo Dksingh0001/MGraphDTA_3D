@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MGraphDTA — Multi-Structure 3D Complex Viewer</title>
+  <meta name="description" content="Interactive 3D molecular viewer and binding pocket contact analyzer for multiple drug-target complexes in MGraphDTA.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+  <script src="structures/structures_data.js"></script>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-surface: #111726;
+      --bg-card: #161f33;
+      --bg-glass: rgba(22, 31, 51, 0.75);
+      --border-color: #24324d;
+      --border-accent: #3b82f6;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --secondary: #818cf8;
+      --accent-orange: #fb923c;
+      --accent-cyan: #22d3ee;
+      --accent-green: #34d399;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(180deg, #131b2e 0%, #0d1322 100%);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 28px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.35);
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, #ffffff, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Mode Navigation Tabs */
+    .view-tabs {
+      display: flex;
+      background: #0b101c;
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      gap: 4px;
+    }
+    .tab-btn {
+      padding: 8px 16px;
+      background: transparent;
+      border: 0;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .tab-btn.active {
+      background: var(--bg-card);
+      color: var(--primary);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    /* Main Container */
+    main {
+      padding: 24px 28px;
+      flex: 1;
+      max-width: 1700px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .view-section {
+      display: none;
+    }
+    .view-section.active {
+      display: block;
+      animation: fadeIn 0.25s ease forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Buttons & Controls */
+    .btn {
+      padding: 8px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .btn:hover {
+      background: #202b44;
+      border-color: #3b5078;
+    }
+    .btn-primary {
+      background: #0284c7;
+      border-color: #0ea5e9;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: #0369a1;
+    }
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+
+    select {
+      padding: 9px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+    select:focus {
+      border-color: var(--primary);
+    }
+
+    /* GRID VIEW: All 5 Complexes */
+    .grid-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .structures-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 22px;
+    }
+    .complex-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-lg);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .complex-card:hover {
+      border-color: #38bdf866;
+      transform: translateY(-2px);
+    }
+    .card-top {
+      padding: 14px 18px;
+      background: rgba(13, 19, 34, 0.6);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-title-group h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .card-title-group p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .pdb-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .card-viewer-wrap {
+      position: relative;
+      width: 100%;
+      height: 330px;
+      background: #090d16;
+    }
+    .grid-viewer-canvas {
+      width: 100%;
+      height: 100%;
+    }
+    .card-floating-controls {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      display: flex;
+      gap: 6px;
+      z-index: 10;
+      background: rgba(11, 16, 28, 0.7);
+      backdrop-filter: blur(8px);
+      padding: 4px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .card-footer {
+      padding: 14px 18px;
+      background: rgba(13, 19, 34, 0.4);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .card-metrics {
+      display: flex;
+      gap: 14px;
+      font-size: 12px;
+    }
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .metric-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .metric-value {
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: #38bdf8;
+    }
+
+    /* DUAL COMPARE VIEW */
+    .compare-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .compare-column {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .compare-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .compare-viewer-wrap {
+      width: 100%;
+      height: 480px;
+      background: #090d16;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      position: relative;
+    }
+    .compare-info-box {
+      background: #0d1322;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+
+    /* SINGLE VIEW: Detailed Inspection */
+    .single-layout {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 24px;
+    }
+    .single-viewer-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .viewer-header-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    #singleViewer {
+      width: 100%;
+      height: 580px;
+      background: #090d16;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+    }
+    .controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .legend-bar {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      padding: 10px 14px;
+      background: #0d1322;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* Sidebar / Table */
+    .single-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .detail-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+    }
+    .detail-card h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .detail-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+    .table-container {
+      overflow-y: auto;
+      max-height: 480px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin-top: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      text-align: left;
+    }
+    th {
+      background: #0d1322;
+      color: #cbd5e1;
+      padding: 10px 12px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: 1px solid var(--border-color);
+    }
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #1a2538;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    tbody tr {
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    tbody tr:hover {
+      background: rgba(56, 189, 248, 0.1);
+    }
+    tbody tr.selected {
+      background: rgba(34, 211, 238, 0.22) !important;
+      outline: 1px solid var(--accent-cyan);
+    }
+
+    /* Status Bar */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--accent-green);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+    }
+
+    @media (max-width: 1100px) {
+      .single-layout { grid-template-columns: 1fr; }
+      .compare-container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="brand">
+      <div class="badge-icon">3D</div>
+      <div>
+        <h1>MGraphDTA — Multi-Structure 3D Complex Viewer</h1>
+        <div class="header-subtitle">Interactive Geometric Contact &amp; Binding Pocket Inspection for Kinase Inhibitors</div>
+      </div>
+    </div>
+    
+    <div class="view-tabs" role="tablist">
+      <button class="tab-btn active" id="tabGrid" onclick="switchView('grid')">
+        <span>⊞</span> Multi-Complex Gallery (5)
+      </button>
+      <button class="tab-btn" id="tabCompare" onclick="switchView('compare')">
+        <span>⇄</span> Dual Comparison
+      </button>
+      <button class="tab-btn" id="tabSingle" onclick="switchView('single')">
+        <span>🔍</span> Detailed Inspector
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- VIEW 1: Multi-Complex Gallery (All 5 Complexes) -->
+  <section id="viewGrid" class="view-section active">
+    <div class="grid-header">
+      <div class="section-title">
+        <span>Multi-Complex Gallery</span>
+        <span class="status-badge">● 5 Structures Loaded in Memory</span>
+      </div>
+      <div style="font-size: 13px; color: var(--text-muted);">
+        Drag any card to rotate 3D complex. Click "Inspect Details" to view full residue table.
+      </div>
+    </div>
+
+    <div class="structures-grid" id="cardsGrid">
+      <!-- Complex cards will be dynamically injected here -->
+    </div>
+  </section>
+
+  <!-- VIEW 2: Dual Structure Comparison -->
+  <section id="viewCompare" class="view-section">
+    <div class="grid-header">
+      <div class="section-title">
+        <span>Dual Complex Comparison</span>
+        <span style="font-size: 13px; color: var(--text-muted); font-weight: normal;">Compare binding pockets and geometries side-by-side</span>
+      </div>
+      <div>
+        <button class="btn btn-sm" onclick="syncRotations()">Synchronize Views</button>
+      </div>
+    </div>
+
+    <div class="compare-container">
+      <!-- Compare Left -->
+      <div class="compare-column">
+        <div class="compare-toolbar">
+          <label style="font-size: 13px; font-weight: 600;">Complex A:</label>
+          <select id="compareSelectA" onchange="loadCompareStructure('A', this.value)">
+            <option value="2HYY">ABL1 — Imatinib (PDB 2HYY)</option>
+            <option value="1UWH">BRAF — Sorafenib (PDB 1UWH)</option>
+            <option value="3EFL" selected>VEGFR2 — Motesanib (PDB 3EFL)</option>
+            <option value="1M17">EGFR — Erlotinib (PDB 1M17)</option>
+            <option value="1YOL">SRC — CGP77675 (PDB 1YOL)</option>
+          </select>
+          <button class="btn btn-sm" onclick="focusCompare('A')">Focus</button>
+        </div>
+        <div class="compare-viewer-wrap">
+          <div id="compareViewerA" style="width:100%; height:100%;"></div>
+        </div>
+        <div class="compare-info-box" id="compareInfoA">Loading Complex A...</div>
+      </div>
+
+      <!-- Compare Right -->
+      <div class="compare-column">
+        <div class="compare-toolbar">
+          <label style="font-size: 13px; font-weight: 600;">Complex B:</label>
+          <select id="compareSelectB" onchange="loadCompareStructure('B', this.value)">
+            <option value="2HYY" selected>ABL1 — Imatinib (PDB 2HYY)</option>
+            <option value="1UWH">BRAF — Sorafenib (PDB 1UWH)</option>
+            <option value="3EFL">VEGFR2 — Motesanib (PDB 3EFL)</option>
+            <option value="1M17">EGFR — Erlotinib (PDB 1M17)</option>
+            <option value="1YOL">SRC — CGP77675 (PDB 1YOL)</option>
+          </select>
+          <button class="btn btn-sm" onclick="focusCompare('B')">Focus</button>
+        </div>
+        <div class="compare-viewer-wrap">
+          <div id="compareViewerB" style="width:100%; height:100%;"></div>
+        </div>
+        <div class="compare-info-box" id="compareInfoB">Loading Complex B...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIEW 3: Detailed Single Structure View -->
+  <section id="viewSingle" class="view-section">
+    <div class="single-layout">
+      <!-- Viewer Box -->
+      <div class="single-viewer-container">
+        <div class="viewer-header-controls">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="structureSelect" style="font-size: 14px; font-weight: 600;">Target Complex:</label>
+            <select id="structureSelect" onchange="loadSingleStructure(this.value)">
+              <option value="2HYY">ABL1 — Imatinib (PDB 2HYY)</option>
+              <option value="1UWH">BRAF — Sorafenib (PDB 1UWH)</option>
+              <option value="3EFL" selected>VEGFR2 — Motesanib (PDB 3EFL)</option>
+              <option value="1M17">EGFR — Erlotinib (PDB 1M17)</option>
+              <option value="1YOL">SRC — CGP77675 (PDB 1YOL)</option>
+            </select>
+          </div>
+          <span id="singleStatus" class="status-badge">Ready</span>
+        </div>
+
+        <div id="singleViewer"></div>
+
+        <div class="legend-bar">
+          <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(90deg, #60a5fa, #f472b6);"></span> Protein: Spectrum Cartoon</div>
+          <div class="legend-item"><span class="legend-dot" style="background: #fb923c;"></span> Binding Pocket (&le; 4.0 Å): Orange Sticks</div>
+          <div class="legend-item"><span class="legend-dot" style="background: #38bdf8;"></span> Ligand: Sticks</div>
+          <div class="legend-item"><span class="legend-dot" style="background: #22d3ee;"></span> Highlighted Residue: Cyan</div>
+        </div>
+
+        <div class="controls-bar">
+          <button class="btn" id="btnToggleProtein" onclick="toggleSingleProtein()">Toggle Protein</button>
+          <button class="btn" id="btnTogglePocket" onclick="toggleSinglePocket()">Toggle Pocket (4Å)</button>
+          <button class="btn" id="btnToggleLigand" onclick="toggleSingleLigand()">Toggle Ligand</button>
+          <button class="btn" id="btnToggleSpin" onclick="toggleSingleSpin()">Toggle Auto-Spin</button>
+          <button class="btn btn-primary" onclick="focusSingleLigand()">Focus Pocket</button>
+          <button class="btn" onclick="showFullProtein()">View Entire Protein</button>
+        </div>
+      </div>
+
+      <!-- Sidebar / Contact Details Table -->
+      <div class="single-sidebar">
+        <div class="detail-card">
+          <h2 id="complexTitle">VEGFR2 + Motesanib (PDB 3EFL)</h2>
+          <p id="complexDesc" style="margin-top: 6px;">VEGFR2 kinase domain with motesanib inhibitor.</p>
+          
+          <div style="display: flex; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color);">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Contacts (&le; 4.0 Å)</div>
+              <div id="contactCountBadge" style="font-size: 18px; font-weight: 700; color: #38bdf8; font-family: 'JetBrains Mono';">0</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Closest Residue</div>
+              <div id="closestResidueBadge" style="font-size: 18px; font-weight: 700; color: #fb923c; font-family: 'JetBrains Mono';">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-card" style="flex: 1; display: flex; flex-direction: column;">
+          <h2>Geometric Residue Contacts</h2>
+          <p>Click any residue to highlight it in cyan and center 3D camera.</p>
+          
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Residue</th>
+                  <th>Protein Atom</th>
+                  <th>Ligand Atom</th>
+                  <th>Distance</th>
+                </tr>
+              </thead>
+              <tbody id="contactTableBody">
+                <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Calculating contacts...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  // Structure Registry and Ligand Definitions
+  const STRUCTURES = {
+    "2HYY": {
+      name: "ABL1 + Imatinib",
+      gene: "ABL1",
+      drug: "Imatinib (STI-571)",
+      file: "structures/2HYY.pdb",
+      ligand: { resn: "STI", chain: "A", resi: 600 },
+      description: "Human ABL1 kinase domain with imatinib inhibitor (Gleevec). Key BCR-ABL target in chronic myeloid leukemia."
+    },
+    "1UWH": {
+      name: "BRAF + Sorafenib",
+      gene: "BRAF",
+      drug: "Sorafenib (Nexavar)",
+      file: "structures/1UWH.pdb",
+      ligand: { resn: "BAX", chain: "A", resi: 1723 },
+      description: "BRAF oncogenic kinase complexed with multikinase inhibitor sorafenib (BAX)."
+    },
+    "3EFL": {
+      name: "VEGFR2 + Motesanib",
+      gene: "KDR / VEGFR2",
+      drug: "Motesanib (AMG 706)",
+      file: "structures/3EFL.pdb",
+      ligand: { resn: "706", chain: "A", resi: 501 },
+      description: "VEGFR2 / KDR receptor tyrosine kinase domain with anti-angiogenesis drug motesanib."
+    },
+    "1M17": {
+      name: "EGFR + Erlotinib",
+      gene: "EGFR",
+      drug: "Erlotinib (Tarceva)",
+      file: "structures/1M17.pdb",
+      ligand: { resn: "AQ4", chain: "A", resi: 999 },
+      description: "Human EGFR kinase domain complex with erlotinib (Tarceva) for non-small cell lung cancer."
+    },
+    "1YOL": {
+      name: "SRC + CGP77675",
+      gene: "SRC",
+      drug: "CGP77675",
+      file: "structures/1YOL.pdb",
+      ligand: { resn: "S03", chain: "A", resi: 601 },
+      description: "Proto-oncogene tyrosine-protein kinase Src complexed with selective inhibitor CGP77675."
+    }
+  };
+
+  // State Management
+  let currentActiveView = "grid";
+  let singleViewer = null;
+  let singlePdbId = "3EFL";
+  let singleProteinVisible = true;
+  let singlePocketVisible = true;
+  let singleLigandVisible = true;
+  let singleSpinning = false;
+  let singleSelectedResidue = null;
+  let singleContactList = [];
+
+  const gridViewers = {};
+  const compareViewers = { A: null, B: null };
+  const compareConfigs = { A: "3EFL", B: "2HYY" };
+
+  // Fetch PDB text either from preloaded JS cache or HTTP fallback
+  async function getPdbText(pdbId) {
+    if (window.STRUCTURE_PDB_DATA && window.STRUCTURE_PDB_DATA[pdbId]) {
+      return window.STRUCTURE_PDB_DATA[pdbId];
+    }
+    const response = await fetch(STRUCTURES[pdbId].file);
+    if (!response.ok) throw new Error("HTTP error " + response.status + " while loading " + STRUCTURES[pdbId].file);
+    return await response.text();
+  }
+
+  // Fast client-side geometric heavy-atom contact calculator
+  function computeContacts(model, ligandDef) {
+    const atoms = model.selectedAtoms({});
+    const ligandAtoms = atoms.filter(a =>
+      a.resn === ligandDef.resn &&
+      a.chain === ligandDef.chain &&
+      Number(a.resi) === Number(ligandDef.resi) &&
+      a.elem && a.elem.toUpperCase() !== "H" && a.elem.toUpperCase() !== "D"
+    );
+    if (!ligandAtoms.length) return [];
+
+    const proteinAtoms = atoms.filter(a =>
+      a.chain === "A" && !a.hetflag &&
+      a.resn && a.resn !== "HOH" &&
+      a.elem && a.elem.toUpperCase() !== "H" && a.elem.toUpperCase() !== "D"
+    );
+
+    const bestByResidue = new Map();
+    for (const pa of proteinAtoms) {
+      for (const la of ligandAtoms) {
+        const dx = pa.x - la.x, dy = pa.y - la.y, dz = pa.z - la.z;
+        const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        if (d <= 4.0) {
+          const key = String(pa.resi);
+          const prev = bestByResidue.get(key);
+          if (!prev || d < prev.distance) {
+            bestByResidue.set(key, {
+              chain: pa.chain,
+              number: Number(pa.resi),
+              name: pa.resn,
+              distance: d,
+              proteinAtom: pa.atom,
+              ligandAtom: la.atom
+            });
+          }
+        }
+      }
+    }
+    return [...bestByResidue.values()].sort((a, b) => a.distance - b.distance);
+  }
+
+  // ==========================================
+  // VIEW SWITCHING
+  // ==========================================
+  function switchView(viewName) {
+    currentActiveView = viewName;
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".view-section").forEach(s => s.classList.remove("active"));
+
+    if (viewName === "grid") {
+      document.getElementById("tabGrid").classList.add("active");
+      document.getElementById("viewGrid").classList.add("active");
+      renderGridGallery();
+    } else if (viewName === "compare") {
+      document.getElementById("tabCompare").classList.add("active");
+      document.getElementById("viewCompare").classList.add("active");
+      initCompareView();
+    } else if (viewName === "single") {
+      document.getElementById("tabSingle").classList.add("active");
+      document.getElementById("viewSingle").classList.add("active");
+      if (!singleViewer) {
+        initSingleViewer();
+      } else {
+        requestAnimationFrame(() => { singleViewer.resize(); singleViewer.render(); });
+      }
+    }
+  }
+
+  // ==========================================
+  // 1. MULTI-COMPLEX GALLERY (GRID)
+  // ==========================================
+  let gridInitialized = false;
+
+  async function renderGridGallery() {
+    const gridEl = document.getElementById("cardsGrid");
+    if (!gridInitialized) {
+      gridEl.innerHTML = "";
+      for (const [pdbId, cfg] of Object.entries(STRUCTURES)) {
+        const card = document.createElement("div");
+        card.className = "complex-card";
+        card.id = "card_" + pdbId;
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="card-title-group">
+              <h3>${cfg.name}</h3>
+              <p>${cfg.drug} • Chain A</p>
+            </div>
+            <span class="pdb-badge">${pdbId}</span>
+          </div>
+          <div class="card-viewer-wrap">
+            <div id="viewer_grid_${pdbId}" class="grid-viewer-canvas"></div>
+            <div class="card-floating-controls">
+              <button class="btn btn-sm" onclick="resetGridCamera('${pdbId}')" title="Center on Ligand">🎯 Focus</button>
+              <button class="btn btn-sm" onclick="toggleGridSpin('${pdbId}')" title="Auto-Rotate">↻ Spin</button>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="card-metrics">
+              <div class="metric-item">
+                <span class="metric-label">Pocket Contacts</span>
+                <span class="metric-value" id="grid_contacts_${pdbId}">...</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Min Dist</span>
+                <span class="metric-value" id="grid_dist_${pdbId}">...</span>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="inspectSingle('${pdbId}')">Inspect Details →</button>
+          </div>
+        `;
+        gridEl.appendChild(card);
+      }
+      gridInitialized = true;
+    }
+
+    // Initialize all 5 viewers asynchronously
+    for (const [pdbId, cfg] of Object.entries(STRUCTURES)) {
+      if (!gridViewers[pdbId]) {
+        initCardViewer(pdbId, cfg);
+      } else {
+        requestAnimationFrame(() => {
+          gridViewers[pdbId].viewer.resize();
+          gridViewers[pdbId].viewer.render();
+        });
+      }
+    }
+  }
+
+  async function initCardViewer(pdbId, cfg) {
+    const container = document.getElementById("viewer_grid_" + pdbId);
+    if (!container) return;
+    const v = $3Dmol.createViewer(container, { backgroundColor: "#090d16" });
+    gridViewers[pdbId] = { viewer: v, spinning: false, ligand: cfg.ligand };
+
+    try {
+      const pdbText = await getPdbText(pdbId);
+      const model = v.addModel(pdbText, "pdb");
+
+      // Apply styling: cartoon protein + orange pocket + ligand sticks
+      v.setStyle({ chain: "A", hetflag: false }, { cartoon: { color: "spectrum" } });
+      v.setStyle({ chain: "A", within: { distance: 4.0, sel: cfg.ligand }, hetflag: false },
+        { stick: { colorscheme: "orangeCarbon", radius: 0.18 } });
+      v.setStyle(cfg.ligand, { stick: { colorscheme: "default", radius: 0.32 } });
+
+      v.zoomTo(cfg.ligand);
+      v.render();
+      requestAnimationFrame(() => { v.resize(); v.zoomTo(cfg.ligand); v.render(); });
+
+      // Calculate contacts for metric display
+      const contacts = computeContacts(model, cfg.ligand);
+      const countEl = document.getElementById("grid_contacts_" + pdbId);
+      const distEl = document.getElementById("grid_dist_" + pdbId);
+      if (countEl) countEl.textContent = contacts.length + " res";
+      if (distEl) distEl.textContent = contacts.length ? contacts[0].distance.toFixed(2) + " Å" : "N/A";
+    } catch (err) {
+      console.error("Error loading card viewer " + pdbId, err);
+      container.innerHTML = `<div style="padding:20px; color:#f87171; font-size:12px;">Failed to load structure: ${err.message}</div>`;
+    }
+  }
+
+  function resetGridCamera(pdbId) {
+    if (gridViewers[pdbId]) {
+      gridViewers[pdbId].viewer.zoomTo(gridViewers[pdbId].ligand);
+      gridViewers[pdbId].viewer.render();
+    }
+  }
+
+  function toggleGridSpin(pdbId) {
+    if (gridViewers[pdbId]) {
+      const obj = gridViewers[pdbId];
+      obj.spinning = !obj.spinning;
+      obj.viewer.spin(obj.spinning ? "y" : false, 1.0);
+    }
+  }
+
+  function inspectSingle(pdbId) {
+    singlePdbId = pdbId;
+    document.getElementById("structureSelect").value = pdbId;
+    switchView("single");
+    loadSingleStructure(pdbId);
+  }
+
+  // ==========================================
+  // 2. DUAL COMPARISON VIEW
+  // ==========================================
+  let compareInitialized = false;
+
+  function initCompareView() {
+    if (!compareInitialized) {
+      const elA = document.getElementById("compareViewerA");
+      const elB = document.getElementById("compareViewerB");
+      compareViewers.A = $3Dmol.createViewer(elA, { backgroundColor: "#090d16" });
+      compareViewers.B = $3Dmol.createViewer(elB, { backgroundColor: "#090d16" });
+      compareInitialized = true;
+    }
+    loadCompareStructure('A', compareConfigs.A);
+    loadCompareStructure('B', compareConfigs.B);
+  }
+
+  async function loadCompareStructure(side, pdbId) {
+    compareConfigs[side] = pdbId;
+    const cfg = STRUCTURES[pdbId];
+    const v = compareViewers[side];
+    const infoBox = document.getElementById("compareInfo" + side);
+    infoBox.innerHTML = `<strong>${cfg.name}</strong> (PDB ${pdbId})<br><span style="color:#94a3b8;">${cfg.description}</span>`;
+
+    try {
+      const pdbText = await getPdbText(pdbId);
+      v.clear();
+      const model = v.addModel(pdbText, "pdb");
+
+      v.setStyle({ chain: "A", hetflag: false }, { cartoon: { color: "spectrum" } });
+      v.setStyle({ chain: "A", within: { distance: 4.0, sel: cfg.ligand }, hetflag: false },
+        { stick: { colorscheme: "orangeCarbon", radius: 0.18 } });
+      v.setStyle(cfg.ligand, { stick: { colorscheme: "default", radius: 0.32 } });
+
+      v.zoomTo(cfg.ligand);
+      v.render();
+      requestAnimationFrame(() => { v.resize(); v.zoomTo(cfg.ligand); v.render(); });
+
+      const contacts = computeContacts(model, cfg.ligand);
+      infoBox.innerHTML += `<div style="margin-top:8px; color:#38bdf8; font-weight:600;">Binding Pocket: ${contacts.length} residues within 4 Å | Min distance: ${contacts[0]?.distance.toFixed(3) || '—'} Å</div>`;
+    } catch (err) {
+      infoBox.innerHTML = `<span style="color:#f87171;">Error: ${err.message}</span>`;
+    }
+  }
+
+  function focusCompare(side) {
+    const pdbId = compareConfigs[side];
+    if (compareViewers[side] && STRUCTURES[pdbId]) {
+      compareViewers[side].zoomTo(STRUCTURES[pdbId].ligand);
+      compareViewers[side].render();
+    }
+  }
+
+  function syncRotations() {
+    focusCompare('A');
+    focusCompare('B');
+  }
+
+  // ==========================================
+  // 3. SINGLE STRUCTURE DETAILED VIEW
+  // ==========================================
+  function initSingleViewer() {
+    const el = document.getElementById("singleViewer");
+    singleViewer = $3Dmol.createViewer(el, { backgroundColor: "#090d16" });
+    loadSingleStructure(singlePdbId);
+  }
+
+  function applySingleStyles() {
+    if (!singleViewer) return;
+    const cfg = STRUCTURES[singlePdbId];
+    singleViewer.setStyle({}, {});
+
+    if (singleProteinVisible) {
+      singleViewer.setStyle({ chain: "A", hetflag: false }, { cartoon: { color: "spectrum" } });
+    }
+    if (singlePocketVisible && cfg) {
+      singleViewer.setStyle({ chain: "A", within: { distance: 4.0, sel: cfg.ligand }, hetflag: false },
+        { stick: { colorscheme: "orangeCarbon", radius: 0.20 } });
+    }
+    if (singleLigandVisible && cfg) {
+      singleViewer.setStyle(cfg.ligand, { stick: { colorscheme: "default", radius: 0.32 } });
+    }
+    if (singleSelectedResidue !== null) {
+      singleViewer.setStyle({ chain: "A", resi: singleSelectedResidue, hetflag: false },
+        { stick: { color: "#22d3ee", radius: 0.35 } });
+    }
+    singleViewer.render();
+  }
+
+  async function loadSingleStructure(pdbId) {
+    singlePdbId = pdbId;
+    const cfg = STRUCTURES[pdbId];
+    if (!cfg || !singleViewer) return;
+
+    singleSelectedResidue = null;
+    document.getElementById("complexTitle").textContent = cfg.name + " (PDB " + pdbId + ")";
+    document.getElementById("complexDesc").textContent = cfg.description;
+    document.getElementById("singleStatus").textContent = "Loading...";
+
+    const tbody = document.getElementById("contactTableBody");
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Calculating contacts...</td></tr>';
+
+    try {
+      const pdbText = await getPdbText(pdbId);
+      singleViewer.clear();
+      const model = singleViewer.addModel(pdbText, "pdb");
+
+      applySingleStyles();
+      singleViewer.zoomTo(cfg.ligand);
+      singleViewer.render();
+      requestAnimationFrame(() => { singleViewer.resize(); singleViewer.zoomTo(cfg.ligand); singleViewer.render(); });
+
+      singleContactList = computeContacts(model, cfg.ligand);
+      renderContactTable(singleContactList);
+
+      document.getElementById("contactCountBadge").textContent = singleContactList.length;
+      document.getElementById("closestResidueBadge").textContent = singleContactList.length ?
+        singleContactList[0].name + singleContactList[0].number + " (" + singleContactList[0].distance.toFixed(2) + " Å)" : "None";
+      document.getElementById("singleStatus").textContent = "Loaded (" + singleContactList.length + " contacts)";
+    } catch (err) {
+      console.error(err);
+      tbody.innerHTML = `<tr><td colspan="4" style="color: #f87171;">Failed to load: ${err.message}</td></tr>`;
+      document.getElementById("singleStatus").textContent = "Error";
+    }
+  }
+
+  function renderContactTable(contacts) {
+    const tbody = document.getElementById("contactTableBody");
+    tbody.replaceChildren();
+
+    if (!contacts.length) {
+      const row = document.createElement("tr");
+      row.innerHTML = '<td colspan="4" style="text-align:center; color:var(--text-muted);">No residues within 4.0 Å cutoff.</td>';
+      tbody.appendChild(row);
+      return;
+    }
+
+    contacts.forEach(c => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><strong style="color: #fff;">${c.name}${c.number}</strong></td>
+        <td>${c.proteinAtom}</td>
+        <td>${c.ligandAtom}</td>
+        <td style="color: #38bdf8; font-weight: 600;">${c.distance.toFixed(3)} Å</td>
+      `;
+      row.addEventListener("click", () => {
+        document.querySelectorAll("#contactTableBody tr").forEach(r => r.classList.remove("selected"));
+        row.classList.add("selected");
+        singleSelectedResidue = c.number;
+        applySingleStyles();
+        singleViewer.zoomTo({ chain: "A", resi: c.number });
+        singleViewer.render();
+      });
+      tbody.appendChild(row);
+    });
+  }
+
+  function toggleSingleProtein() {
+    singleProteinVisible = !singleProteinVisible;
+    applySingleStyles();
+    document.getElementById("btnToggleProtein").textContent = singleProteinVisible ? "Hide Protein" : "Show Protein";
+  }
+
+  function toggleSinglePocket() {
+    singlePocketVisible = !singlePocketVisible;
+    applySingleStyles();
+    document.getElementById("btnTogglePocket").textContent = singlePocketVisible ? "Hide Pocket" : "Show Pocket";
+  }
+
+  function toggleSingleLigand() {
+    singleLigandVisible = !singleLigandVisible;
+    applySingleStyles();
+    document.getElementById("btnToggleLigand").textContent = singleLigandVisible ? "Hide Ligand" : "Show Ligand";
+  }
+
+  function toggleSingleSpin() {
+    if (!singleViewer) return;
+    singleSpinning = !singleSpinning;
+    singleViewer.spin(singleSpinning ? "y" : false, 1.0);
+    document.getElementById("btnToggleSpin").textContent = singleSpinning ? "Stop Spin" : "Auto-Spin";
+  }
+
+  function focusSingleLigand() {
+    singleSelectedResidue = null;
+    document.querySelectorAll("#contactTableBody tr").forEach(r => r.classList.remove("selected"));
+    applySingleStyles();
+    if (singleViewer && STRUCTURES[singlePdbId]) {
+      singleViewer.zoomTo(STRUCTURES[singlePdbId].ligand);
+      singleViewer.render();
+    }
+  }
+
+  function showFullProtein() {
+    singleSelectedResidue = null;
+    document.querySelectorAll("#contactTableBody tr").forEach(r => r.classList.remove("selected"));
+    applySingleStyles();
+    if (singleViewer) {
+      singleViewer.zoomTo({ chain: "A" });
+      singleViewer.render();
+    }
+  }
+
+  // Initial startup
+  window.addEventListener("DOMContentLoaded", () => {
+    switchView("grid");
+  });
+</script>
+</body>
+</html>

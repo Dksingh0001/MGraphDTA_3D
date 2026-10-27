@@ -1,0 +1,472 @@
+﻿
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MGraphDTA 3D Viewer</title>
+
+  <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #101522;
+      color: #f2f4f8;
+    }
+
+    header {
+      padding: 20px;
+      background: #1a2233;
+    }
+
+    h1 { margin: 0 0 8px; font-size: 24px; }
+
+    p {
+      color: #c5ccda;
+      line-height: 1.5;
+    }
+
+    #viewer {
+      width: 100%;
+      height: 65vh;
+      min-height: 400px;
+      background: #101522;
+    }
+
+    .panel { padding: 16px 20px; }
+
+    button {
+      padding: 10px 14px;
+      margin: 4px;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #334766;
+      color: white;
+    }
+
+    button:hover { background: #49648e; }
+
+    #status { color: #a9d8b8; }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      min-width: 600px;
+    }
+
+    th, td {
+      padding: 11px;
+      border-bottom: 1px solid #334766;
+    }
+
+    th { background: #1a2233; }
+
+    tbody tr {
+      cursor: pointer;
+    }
+
+    tbody tr:hover { background: #263650; }
+
+    tbody tr.selected { background: #3b4d68; }
+
+    @media (max-width: 600px) {
+      #viewer { height: 60vh; min-height: 350px; }
+      h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>MGraphDTA: 3D Drug-Protein Viewer</h1>
+    <p>
+      Drug: Motesanib (AMG 706) |
+      Target: VEGFR2 / KDR |
+      Experimental structure: PDB 3EFL
+    </p>
+    <p>
+      X-ray crystallography | Reported resolution: 2.20 Å |
+      Ligand component: 706, chain A
+    </p>
+  </header>
+
+  <div id="viewer"></div>
+
+  <div class="panel">
+    <div class="legend">
+      <span>Protein: rainbow cartoon</span>
+      <span>Ligand: sticks</span>
+      <span>Nearby residues: orange sticks</span>
+      <span>Selected residue: cyan sticks</span>
+    </div>
+
+    <div>
+      <button id="proteinBtn">Hide protein</button>
+      <button id="pocketBtn">Hide binding pocket</button>
+      <button id="ligandBtn">Hide ligand</button>
+      <button id="resetBtn">Focus on ligand</button>
+      <button id="fullBtn">Show full chain A</button>
+    </div>
+
+    <p id="status">Loading experimental structure...</p>
+    <p>
+      Rotate: drag with mouse. Zoom: mouse wheel.
+      Nearby protein atoms are selected using a 4 Å cutoff.
+    </p>
+    <p>
+      Distances describe geometric proximity. They do not by themselves
+      prove hydrogen bonds or binding affinity.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>Ligand–Protein Residue Contacts</h2>
+    <p>
+      Each distance is the minimum heavy-atom distance between the ligand
+      and the listed protein residue. Click a row to highlight that residue.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Residue</th>
+            <th>Protein atom</th>
+            <th>Ligand atom</th>
+            <th>Minimum distance (Å)</th>
+          </tr>
+        </thead>
+        <tbody id="contactRows">
+          <tr>
+            <td colspan="4">Loading contact data...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const element = document.getElementById("viewer");
+    const status = document.getElementById("status");
+
+    const viewer = $3Dmol.createViewer(element, {
+      backgroundColor: "#101522"
+    });
+
+    // The experimental ligand is in chain A, residue 501.
+    const ligand = {
+      resn: "706",
+      chain: "A",
+      resi: 501
+    };
+
+    const pocket = {
+      chain: "A",
+      within: { distance: 4.0, sel: ligand }
+    };
+
+    let proteinVisible = true;
+    let pocketVisible = true;
+    let ligandVisible = true;
+    let selectedResidue = null;
+
+    function applyStyles() {
+      // Clear styles, then rebuild all currently enabled representations.
+      viewer.setStyle({}, {});
+
+      if (proteinVisible) {
+        viewer.setStyle(
+          { chain: "A" },
+          { cartoon: { color: "spectrum" } }
+        );
+      }
+
+      if (pocketVisible) {
+        viewer.setStyle(pocket, {
+          stick: {
+            colorscheme: "orangeCarbon",
+            radius: 0.18
+          }
+        });
+      }
+
+      if (ligandVisible) {
+        viewer.setStyle(ligand, {
+          stick: {
+            colorscheme: "default",
+            radius: 0.30
+          }
+        });
+      }
+
+      // Apply the selection last so it remains visible over other styles.
+      if (selectedResidue !== null) {
+        viewer.setStyle(
+          {
+            chain: "A",
+            resi: selectedResidue
+          },
+          {
+            stick: {
+              color: "cyan",
+              radius: 0.30
+            }
+          }
+        );
+      }
+
+      viewer.render();
+    }
+
+    function focusLigand() {
+      selectedResidue = null;
+      clearSelectedRow();
+
+      viewer.zoomTo({
+        chain: "A",
+        within: { distance: 8.0, sel: ligand }
+      });
+
+      applyStyles();
+      status.textContent = "Focused on motesanib in chain A.";
+    }
+
+    function clearSelectedRow() {
+      document.querySelectorAll("#contactRows tr").forEach(row => {
+        row.classList.remove("selected");
+      });
+    }
+
+    function selectResidue(residueNumber, row) {
+      selectedResidue = residueNumber;
+
+      clearSelectedRow();
+      row.classList.add("selected");
+
+      applyStyles();
+
+      viewer.zoomTo({
+        chain: "A",
+        resi: residueNumber
+      });
+
+      viewer.render();
+
+      status.textContent =
+        "Selected chain A residue " + residueNumber +
+        ". It is highlighted in cyan.";
+    }
+
+    async function loadContactTable() {
+      const tbody = document.getElementById("contactRows");
+
+      try {
+        const response = await fetch("/ligand_residue_contacts.csv");
+
+        if (!response.ok) {
+          throw new Error(
+            "Contact CSV request failed: HTTP " + response.status
+          );
+        }
+
+        const csv = await response.text();
+        const lines = csv.trim().split(/\r?\n/);
+
+        if (lines.length < 2) {
+          throw new Error("The contact CSV has no data rows.");
+        }
+
+        const headers = lines[0].split(",").map(x => x.trim());
+        const index = Object.fromEntries(
+          headers.map((name, i) => [name, i])
+        );
+
+        const required = [
+          "chain",
+          "residue_number",
+          "residue_name",
+          "minimum_distance_A",
+          "protein_atom",
+          "ligand_atom"
+        ];
+
+        for (const name of required) {
+          if (!(name in index)) {
+            throw new Error("Missing CSV column: " + name);
+          }
+        }
+
+        const contacts = lines.slice(1)
+          .filter(line => line.trim())
+          .map(line => {
+            const fields = line.split(",");
+
+            return {
+              chain: fields[index.chain],
+              number: Number(fields[index.residue_number]),
+              name: fields[index.residue_name],
+              distance: Number(fields[index.minimum_distance_A]),
+              proteinAtom: fields[index.protein_atom],
+              ligandAtom: fields[index.ligand_atom]
+            };
+          })
+          .filter(contact =>
+            contact.chain === "A" &&
+            Number.isFinite(contact.number) &&
+            Number.isFinite(contact.distance)
+          )
+          .sort((a, b) => a.distance - b.distance);
+
+        tbody.replaceChildren();
+
+        for (const contact of contacts.filter(c => c.distance <= 4.0)) {
+          const row = document.createElement("tr");
+
+          const values = [
+            contact.name + contact.number,
+            contact.proteinAtom,
+            contact.ligandAtom,
+            contact.distance.toFixed(3) + " Å"
+          ];
+
+          for (const value of values) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+          }
+
+          row.addEventListener("click", () => {
+            selectResidue(contact.number, row);
+          });
+
+          tbody.appendChild(row);
+        }
+
+        if (tbody.children.length === 0) {
+          const row = document.createElement("tr");
+          const cell = document.createElement("td");
+          cell.colSpan = 4;
+          cell.textContent = "No contacts within 4 Å.";
+          row.appendChild(cell);
+          tbody.appendChild(row);
+        }
+      } catch (error) {
+        console.error(error);
+
+        tbody.replaceChildren();
+
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 4;
+        cell.textContent = "Could not load contacts: " + error.message;
+        row.appendChild(cell);
+        tbody.appendChild(row);
+      }
+    }
+
+    async function initializeViewer() {
+      try {
+        if (typeof $3Dmol === "undefined") {
+          throw new Error("3Dmol.js failed to load. Check internet access.");
+        }
+
+        const response = await fetch("/3EFL.pdb");
+
+        if (!response.ok) {
+          throw new Error(
+            "Could not load 3EFL.pdb: HTTP " + response.status
+          );
+        }
+
+        const pdbText = await response.text();
+        viewer.addModel(pdbText, "pdb");
+
+        applyStyles();
+        viewer.zoomTo({
+          chain: "A",
+          within: { distance: 8.0, sel: ligand }
+        });
+        viewer.render();
+
+        // Resize and refit after the browser finishes laying out the page.
+        requestAnimationFrame(() => {
+          viewer.resize();
+          viewer.zoomTo({
+            chain: "A",
+            within: { distance: 8.0, sel: ligand }
+          });
+          viewer.render();
+        });
+
+        status.textContent =
+          "Structure loaded. Drag to rotate and scroll to zoom.";
+
+        document.getElementById("proteinBtn").onclick = () => {
+          proteinVisible = !proteinVisible;
+          applyStyles();
+
+          document.getElementById("proteinBtn").textContent =
+            proteinVisible ? "Hide protein" : "Show protein";
+        };
+
+        document.getElementById("pocketBtn").onclick = () => {
+          pocketVisible = !pocketVisible;
+          applyStyles();
+
+          document.getElementById("pocketBtn").textContent =
+            pocketVisible ? "Hide binding pocket" : "Show binding pocket";
+        };
+
+        document.getElementById("ligandBtn").onclick = () => {
+          ligandVisible = !ligandVisible;
+          applyStyles();
+
+          document.getElementById("ligandBtn").textContent =
+            ligandVisible ? "Hide ligand" : "Show ligand";
+        };
+
+        document.getElementById("resetBtn").onclick = () => {
+          focusLigand();
+          viewer.zoom(1.3);
+          viewer.render();
+        };
+
+        document.getElementById("fullBtn").onclick = () => {
+          selectedResidue = null;
+          clearSelectedRow();
+
+          viewer.zoomTo({ chain: "A" });
+          applyStyles();
+
+          status.textContent = "Showing full protein chain A.";
+        };
+
+        await loadContactTable();
+
+      } catch (error) {
+        console.error(error);
+        status.textContent = "Viewer error: " + error.message;
+      }
+    }
+
+    initializeViewer();
+  </script>
+</body>
+</html>
